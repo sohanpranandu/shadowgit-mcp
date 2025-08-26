@@ -1,6 +1,6 @@
 # ShadowGit MCP Server
 
-[![npm version](https://badge.fury.io/js/shadowgit-mcp-server.svg)](https://badge.fury.io/js/shadowgit-mcp-server)
+[![npm version](https://badge.fury.io/js/shadowgit-mcp-server.svg)](https://www.npmjs.com/package/shadowgit-mcp-server)
 
 A Model Context Protocol (MCP) server that provides AI assistants with secure, read-only access to your ShadowGit repositories. This enables powerful debugging and code analysis capabilities by giving AI access to your project's fine-grained git history.
 
@@ -134,9 +134,11 @@ for (const repo of repos) {
 
 ## Development
 
+For contributors who want to modify or extend the MCP server:
+
 ```bash
-# Clone and setup
-git clone https://github.com/yourusername/shadowgit-mcp-server.git
+# Clone the repository (private GitHub repo)
+git clone https://github.com/shadowgit/shadowgit-mcp-server.git
 cd shadowgit-mcp-server
 npm install
 
@@ -146,8 +148,25 @@ npm run build
 # Test
 npm test
 
-# Run locally
+# Run locally for development
 npm run dev
+
+# Test the built version locally
+node dist/shadowgit-mcp-server.js
+```
+
+### Publishing Updates
+
+```bash
+# Update version
+npm version patch  # or minor/major
+
+# Build and test
+npm run build
+npm test
+
+# Publish to npm (public registry)
+npm publish
 ```
 
 ## License

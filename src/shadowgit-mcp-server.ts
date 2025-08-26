@@ -16,8 +16,10 @@ import * as os from 'os';
 // ============================================================================
 
 const SHADOWGIT_DIR = '.shadowgit.git';
-const TIMEOUT_MS = 10000; // 10 seconds
+const TIMEOUT_MS = parseInt(process.env.SHADOWGIT_TIMEOUT || '10000', 10); // Default 10 seconds
 const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_COMMAND_LENGTH = 1000; // Maximum git command length
+const VERSION = '1.0.0';
 
 // ============================================================================
 // Type Definitions
@@ -45,8 +47,22 @@ type MCPToolResponse = {
 // Logging
 // ============================================================================
 
-const log = (message: string): void => {
-  process.stderr.write(`[shadowgit-mcp] ${message}\n`);
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+const LOG_LEVELS: Record<LogLevel, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3
+};
+
+const CURRENT_LOG_LEVEL = LOG_LEVELS[process.env.LOG_LEVEL as LogLevel] ?? LOG_LEVELS.info;
+
+const log = (level: LogLevel, message: string): void => {
+  if (LOG_LEVELS[level] >= CURRENT_LOG_LEVEL) {
+    const timestamp = new Date().toISOString();
+    process.stderr.write(`[${timestamp}] [shadowgit-mcp] [${level.toUpperCase()}] ${message}\n`);
+  }
 };
 
 // ============================================================================
@@ -89,7 +105,7 @@ function readJsonFile<T>(filePath: string, defaultValue: T): T {
     const content = fs.readFileSync(filePath, 'utf-8');
     return JSON.parse(content) as T;
   } catch (error) {
-    log(`Error reading JSON file ${filePath}: ${error}`);
+    log('error', `Error reading JSON file ${filePath}: ${error}`);
     return defaultValue;
   }
 }
@@ -113,6 +129,7 @@ function getGitEnvironment(repoPath: string): NodeJS.ProcessEnv {
 class ShadowGitMCPServer {
   private server: Server;
   private repos: Map<string, string> = new Map(); // name -> path mapping
+  private isShuttingDown = false;
   
   // Whitelist of safe read-only git commands
   private readonly SAFE_COMMANDS = new Set([
@@ -129,14 +146,25 @@ class ShadowGitMCPServer {
     '-c', '--config', '--work-tree', '--git-dir',
     'push', 'pull', 'fetch', 'commit', 'merge',
     'rebase', 'reset', 'clean', 'checkout', 'add',
-    'rm', 'mv', 'restore', 'stash'
+    'rm', 'mv', 'restore', 'stash', 'remote',
+    'submodule', 'worktree', 'filter-branch',
+    'repack', 'gc', 'prune', 'fsck'
+  ];
+  
+  // Path traversal patterns to block
+  private readonly PATH_TRAVERSAL_PATTERNS = [
+    '../',
+    '..\\',
+    '%2e%2e',
+    '..%2f',
+    '..%5c'
   ];
 
   constructor() {
     this.server = new Server(
       {
         name: 'shadowgit-mcp',
-        version: '1.0.0'
+        version: VERSION
       },
       {
         capabilities: {
@@ -158,7 +186,7 @@ class ShadowGitMCPServer {
       this.repos.set(repo.name, repo.path);
     });
     
-    log(`Loaded ${repos.length} repositories from ${reposPath}`);
+    log('info', `Loaded ${repos.length} repositories from ${reposPath}`);
   }
 
   private isGitCommandArgs(args: unknown): args is GitCommandArgs {
@@ -331,13 +359,34 @@ This repository may not be tracked by ShadowGit yet.`
   }
 
   private resolveRepoPath(repoNameOrPath: string): string | null {
+    // Validate input for path traversal attempts
+    for (const pattern of this.PATH_TRAVERSAL_PATTERNS) {
+      if (repoNameOrPath.toLowerCase().includes(pattern)) {
+        log('warn', `Blocked path traversal attempt: ${repoNameOrPath}`);
+        return null;
+      }
+    }
+    
     // First check if it's a known repo name or path
     const mappedPath = this.repos.get(repoNameOrPath);
     if (mappedPath) return mappedPath;
     
     // Check if it's a valid path that exists
-    if (repoNameOrPath.startsWith('/') || repoNameOrPath.startsWith('~')) {
-      const resolvedPath = repoNameOrPath.replace('~', os.homedir());
+    // Support Unix-style paths and Windows paths
+    const isPath = repoNameOrPath.startsWith('/') || 
+                   repoNameOrPath.startsWith('~') ||
+                   repoNameOrPath.includes(':') || // Windows drive letter
+                   repoNameOrPath.startsWith('\\\\'); // UNC path
+                   
+    if (isPath) {
+      const resolvedPath = path.normalize(repoNameOrPath.replace('~', os.homedir()));
+      
+      // Ensure the resolved path is absolute and doesn't escape
+      if (!path.isAbsolute(resolvedPath)) {
+        log('warn', `Invalid path provided: ${repoNameOrPath}`);
+        return null;
+      }
+      
       if (fileExists(resolvedPath)) {
         return resolvedPath;
       }
@@ -347,8 +396,16 @@ This repository may not be tracked by ShadowGit yet.`
   }
 
   private async executeGit(command: string, repoPath: string): Promise<string> {
+    // Check command length
+    if (command.length > MAX_COMMAND_LENGTH) {
+      return `Error: Command too long (max ${MAX_COMMAND_LENGTH} characters).`;
+    }
+    
+    // Remove any null bytes or control characters
+    const sanitizedCommand = command.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+    
     // Safety check 1: Extract and validate command
-    const parts = command.trim().split(/\s+/);
+    const parts = sanitizedCommand.trim().split(/\s+/);
     const gitCommand = parts[0];
     
     if (!this.SAFE_COMMANDS.has(gitCommand)) {
@@ -364,9 +421,13 @@ Allowed commands: ${Array.from(this.SAFE_COMMANDS).join(', ')}`;
       }
     }
     
+    // Log command execution (sanitized for security)
+    log('debug', `Executing git command in ${repoPath}: ${gitCommand} [args hidden]`);
+    
     // Execute git command with proper environment
+    const startTime = Date.now();
     try {
-      const output = execSync(`git ${command}`, {
+      const output = execSync(`git ${sanitizedCommand}`, {
         cwd: repoPath,
         env: getGitEnvironment(repoPath),
         encoding: 'utf8',
@@ -374,29 +435,65 @@ Allowed commands: ${Array.from(this.SAFE_COMMANDS).join(', ')}`;
         maxBuffer: MAX_BUFFER_SIZE
       });
       
+      const executionTime = Date.now() - startTime;
+      log('debug', `Command completed in ${executionTime}ms`);
       return output || '(empty output)';
       
     } catch (error: any) {
+      const executionTime = Date.now() - startTime;
+      log('error', `Command failed after ${executionTime}ms: ${error.message}`);
+      
       // Handle specific error cases
       if (error.code === 'ENOENT') {
-        return 'Error: Git is not installed or not in PATH.';
+        return 'Error: Git is not installed or not in PATH. Please install git and try again.';
       }
       if (error.signal === 'SIGTERM') {
-        return 'Error: Command timed out (10 second limit).';
+        return `Error: Command timed out (${TIMEOUT_MS / 1000} second limit). Try a simpler query.`;
+      }
+      if (error.code === 'ENOBUFS' || error.message?.includes('maxBuffer')) {
+        return 'Error: Output too large. Try limiting the results (e.g., use -n flag or --max-count).';
       }
       if (error.status === 128) {
-        return `Git error: ${error.stderr || error.message}`;
+        const stderr = error.stderr?.toString() || error.message;
+        // Sanitize error messages that might contain sensitive paths
+        const sanitizedError = stderr.replace(/\/[^\s]*/g, '[path]');
+        return `Git error: ${sanitizedError}`;
       }
       
       // Generic error
-      return `Error executing git command: ${error.message}`;
+      return `Error executing git command: ${error.message?.substring(0, 200)}`;
     }
   }
 
   async start(): Promise<void> {
+    // Setup graceful shutdown handlers
+    process.on('SIGINT', () => this.shutdown('SIGINT'));
+    process.on('SIGTERM', () => this.shutdown('SIGTERM'));
+    process.on('uncaughtException', (error) => {
+      log('error', `Uncaught exception: ${error}`);
+      this.shutdown('uncaughtException');
+    });
+    process.on('unhandledRejection', (reason) => {
+      log('error', `Unhandled rejection: ${reason}`);
+      this.shutdown('unhandledRejection');
+    });
+    
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    log(`Server started with ${this.repos.size} repositories`);
+    log('info', `Server started with ${this.repos.size} repositories`);
+    log('info', `Version: ${VERSION}, Timeout: ${TIMEOUT_MS}ms, Log Level: ${process.env.LOG_LEVEL || 'info'}`);
+  }
+  
+  private shutdown(signal: string): void {
+    if (this.isShuttingDown) return;
+    this.isShuttingDown = true;
+    
+    log('info', `Received ${signal}, shutting down gracefully...`);
+    
+    // Give ongoing requests time to complete
+    setTimeout(() => {
+      process.exit(0);
+    }, 1000);
   }
 }
 
@@ -412,7 +509,7 @@ async function main(): Promise<void> {
 // Run if this is the main module
 if (require.main === module) {
   main().catch((error) => {
-    log(`Failed to start server: ${error}`);
+    log('error', `Failed to start server: ${error}`);
     process.exit(1);
   });
 }

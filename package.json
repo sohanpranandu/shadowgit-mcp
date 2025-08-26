@@ -5,10 +5,6 @@
   "author": "Alessandro Afloarei",
   "license": "MIT",
   "homepage": "https://shadowgit.com",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/yourusername/shadowgit-mcp-server.git"
-  },
   "keywords": [
     "mcp",
     "model-context-protocol",
@@ -33,6 +29,8 @@
     "build": "tsc",
     "dev": "ts-node src/shadowgit-mcp-server.ts",
     "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "lint": "eslint src --ext .ts",
     "prepublishOnly": "npm run build",
     "clean": "rimraf dist"
